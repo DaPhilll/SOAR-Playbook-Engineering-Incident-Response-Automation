@@ -1,3 +1,5 @@
+[![Darreon Phillips Homepage](https://img.shields.io/badge/Darreon%20Phillips-Homepage-blue?style=for-the-badge&logo=github&logoColor=white)](https://github.com/DaPhilll)
+
 # SOAR Playbook Engineering & Incident Response Automation
 
 ## 1. Executive Summary & Objective
@@ -165,4 +167,7 @@ def isolate_endpoint(wazuh_ip, jwt_token, agent_id):
 * **Future Roadmap:**
   * [ ] Introduce an intermediate manual confirmation step via collaborative ticketing APIs (e.g., Jira or ServiceNow) specifically for high-availability production domain infrastructure.
   * [ ] Build dynamic reputation lookups for associated external egress destination targets utilizing public IP reputation scoring grids to accelerate distributed denial network blocks.
+
+ <br><br><br>
+[![Darreon Phillips Homepage](https://img.shields.io/badge/Darreon%20Phillips-Homepage-blue?style=for-the-badge&logo=github&logoColor=white)](https://github.com/DaPhilll)
 ```
