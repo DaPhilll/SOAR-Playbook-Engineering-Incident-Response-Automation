@@ -2,6 +2,18 @@
 
 # SOAR Playbook Engineering & Incident Response Automation
 
+## Repository Structure
+```
+/scripts
+  virustotal_enrichment.py
+  wazuh_endpoint_isolate.py
+  anyrun_sandbox_submit.py
+  deploy-shuffle.sh
+requirements.txt
+LICENSE
+README.md
+```
+
 ## 1. Executive Summary & Objective
 * **Problem Statement:** Manual threat intelligence lookups and console-switching during active incidents increase Mean Time to Respond (MTTR) and introduce error under time pressure.
 * **Solution Overview:** This project builds a Security Orchestration, Automation, and Response (SOAR) workflow on the open-source Shuffle platform. It ingests SIEM alerts via webhook, enriches file hash indicators through the VirusTotal API, and isolates compromised endpoints through the Wazuh API, automating the triage steps that would otherwise require manual work.
@@ -12,7 +24,7 @@
   * Standardized notification output to a SOC communication channel.
 
 ## 2. Architecture & Environment Topology
-This workflow runs in the shared lab environment (VirtualBox, `10.10.0.0/24`) and integrates directly with the Wazuh deployment on `SRV-SOC01`. Endpoint isolation actions target `WKSTN-01`.
+This workflow runs in the shared lab environment (VMware Workstation Pro, `10.10.0.0/24`) and integrates directly with the Wazuh deployment on `SRV-SOC01`. Endpoint isolation actions target `WKSTN-01`.
 
 * **Orchestration Host:** Ubuntu Server — `SRV-SOC01`, containerized.
 * **Orchestration Core:** Shuffle SOAR engine (Frontend, Backend, Orborus execution engine, OpenSearch backend), deployed via Docker Compose.
@@ -44,7 +56,8 @@ This workflow runs in the shared lab environment (VirtualBox, `10.10.0.0/24`) an
 
 ## 7. Implementation & Code
 
-### Infrastructure Initialization (`docker-compose.yml`)
+### Infrastructure Initialization
+`scripts/deploy-shuffle.sh`
 ```bash
 # Clone the Shuffle repository
 git clone https://github.com/Shuffle/Shuffle
@@ -54,7 +67,8 @@ cd Shuffle
 sudo docker-compose up -d
 ```
 
-### Use Case 1: VirusTotal Reputation Lookup (`virustotal_enrichment.py`)
+### Use Case 1: VirusTotal Reputation Lookup
+`scripts/virustotal_enrichment.py`
 ```python
 import requests
 import json
@@ -74,7 +88,8 @@ def check_vt_reputation(file_hash, api_key):
         return json.dumps({"error": f"API request failed with status code {response.status_code}"})
 ```
 
-### Use Case 2: Host Isolation via Wazuh API (`wazuh_endpoint_isolate.py`)
+### Use Case 2: Host Isolation via Wazuh API
+`scripts/wazuh_endpoint_isolate.py`
 ```python
 import requests
 import json
@@ -106,6 +121,27 @@ def isolate_endpoint(wazuh_ip, jwt_token, agent_id):
         return {"status": "Failed", "error": response.text}
 ```
 
+### Use Case 3: Sandbox Detonation via ANY.RUN SDK
+`scripts/anyrun_sandbox_submit.py` — submits a flagged URL for automated detonation once the VirusTotal step crosses the malicious-score threshold, using the official `anyrun-sdk` package.
+```python
+import os
+from anyrun.connectors import SandboxConnector
+
+def detonate_url(target_url, api_key):
+    with SandboxConnector.windows(api_key) as connector:
+        analysis_id = connector.run_url_analysis(target_url)
+
+        for status in connector.get_task_status(analysis_id):
+            print(status)
+
+        verdict = connector.get_analysis_verdict(analysis_id)
+
+        if verdict in ("Suspicious", "Malicious"):
+            connector.get_analysis_report(analysis_id, report_format="html", filepath="./reports")
+
+        return {"analysis_id": analysis_id, "verdict": verdict}
+```
+
 ## 8. Workflow Logic & Output Examples
 
 ### Malicious Payload Triage Pipeline
@@ -119,7 +155,7 @@ def isolate_endpoint(wazuh_ip, jwt_token, agent_id):
 [ Logic Gate: Is Malicious Score >= 5? ]
           ├──► (No) ──► [ Append Case Notes ] ──► [ Terminate Workflow ]
           │
-          └──► (Yes) ──► [ Trigger Wazuh Host Isolation API ] ──► [ Send SOC Alert ]
+          └──► (Yes) ──► [ ANY.RUN Sandbox Detonation ] ──► [ Trigger Wazuh Host Isolation API ] ──► [ Send SOC Alert ]
 ```
 
 The JSON below shows the data moving through each node. The file hash is the well-known MD5 of an empty string, used so it cannot be mistaken for a real indicator.
@@ -157,8 +193,18 @@ The JSON below shows the data moving through each node. The file hash is the wel
 ## 9. Hardening & Future Enhancements
 * **Current Posture:** Shuffle containers run on an isolated internal bridge network. Credential sharing between apps is scoped to the encrypted authentication vault to prevent plaintext exposure during script debugging.
 * **Future Roadmap:**
-  * [ ] Add a manual confirmation step via a ticketing API (Jira or ServiceNow) before containment on production-scope infrastructure.
+  * [ ] Add a manual confirmation step via a ticketing API (GLPI) before containment on production-scope infrastructure.
   * [ ] Add IP reputation lookups for outbound connection targets to speed up network-level blocking.
+
+## Dependencies
+Install script dependencies with:
+```bash
+pip install -r requirements.txt
+```
+See `requirements.txt` for exact versions.
+
+## License
+MIT — see [LICENSE](./LICENSE).
 
 <br><br><br>
 [![Darreon Phillips Homepage](https://img.shields.io/badge/Darreon%20Phillips-Homepage-blue?style=for-the-badge&logo=github&logoColor=white)](https://github.com/DaPhilll)
